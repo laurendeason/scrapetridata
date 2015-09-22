@@ -5,13 +5,27 @@ import pandas as pd
 import datetime
 from selenium import webdriver
 import selenium.webdriver.support.ui as ui
-#from ediblepickle import checkpoint
+from ediblepickle import checkpoint
+import string
+import metadata as md
 #from selenium.webdriver.support import expected_conditions as EC
 import time
 
-resultsdir = "../results/"
+resultsdir = "./results/"
 
-def getresultsfromurl(year, url, columnlist, maxpages = 100):
+#need to add in condition based on lastpagescountdown plus alternative conditions indicating we are on last page of results for given race
+#condition to indicate we are on last page of results for given year-race
+#	if lastpagescountdown <= 0 or (tempdf['Place'][0] == 1 and page != 1):
+#	   break
+
+def df_pickler(df,f):
+    df.to_csv(f)    
+    
+def df_unpickler(f):
+    return pd.read_csv(f)  
+
+@checkpoint(key = string.Template('{0}_{1}.csv'), work_dir = resultsdir, pickler=df_pickler, unpickler=df_unpickler, refresh = False)
+def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagecss, maxpages = 100):
         #This function scrapes the results for the given year which are located at given url, returns as a dataframe
         #url = string containing url with results
         # columnlist = list of column headers in order that they appear on results page
@@ -26,7 +40,12 @@ def getresultsfromurl(year, url, columnlist, maxpages = 100):
         #doesnt seem to work since element will still be there even if stale
         #driver.implicitly_wait(5)
         
+        startcountdown = 0 
+        lastpagescountdown = 2
+        
         for page in range(1,maxpages):
+            if startcountdown == 1:
+                lastpagescountdown -= 1
             print("Page is %d" % page)
             if page == 1:
                 driver.get(url)
@@ -47,14 +66,16 @@ def getresultsfromurl(year, url, columnlist, maxpages = 100):
             #    print EC.staleness_of(driver.find_element_by_css_selector('em.current'))
             #    time.sleep(5)
             #checks that new page has loaded by checking if highlighted page number is equal to page number in for loop
-            wait.until(lambda driver: driver.find_element_by_css_selector('em.current').text == unicode(page))
-            print("em.current text is %r " % driver.find_element_by_css_selector('em.current').text)
+            try:
+                wait.until(lambda driver: driver.find_element_by_css_selector(currpagecss).text == unicode(page))
+            except TimeoutException:
+                print("WARNING: Current page, %r, doesn't match counted page, %r, allowing %r more pages to be read. " % (driver.find_element_by_css_selector(currpagecss).text,page, lastpagescountdown+1))
+                startcountdown = 1
             
             soup = BeautifulSoup(driver.page_source, "lxml") #, "html5lib"
-            
             tridatalist = []
             i=0
-            for row in soup('table', {'class': 'participant-list'})[0].tbody('tr'):
+            for row in soup('table', tableattributes)[0].tbody('tr'):
                 tridatalist.append([])
                 tds = row('td')
                 for j in range(len(tds)):
@@ -99,19 +120,16 @@ def getresultsfromurl(year, url, columnlist, maxpages = 100):
         driver.quit()	 
         return df
                   
-
-def getresults_urllist(triname, urldict, coldict):
-    #this accepts a triname,
-    #urldict = dictionary of urls for result data in each year where key values are years 
-    #coldict = dictionary of columnname lists in each year where key values are years 
-
+@checkpoint(key = string.Template('{0}_allyears.csv'), work_dir = resultsdir, pickler=df_pickler, unpickler=df_unpickler, refresh = True)
+def getresults(triathlon):
+    #this accepts a triathlon object,
     #returns a dataframe storing the results data.
 
     yearcount = 0
 
-    for year in (urldict.keys()):  # 2004, 2005, 2008, 2009, 2010, 2011, 2012, 2013, 2014 
+    for year in triathlon.yearlist:  # 2004, 2005, 2008, 2009, 2010, 2011, 2012, 2013, 2014 
         print("YEAR is %d " % year)
-        tempdf = getresultsfromurl(year, urldict[year], coldict[year])
+        tempdf = getresultsfromurl(triathlon.racecode, year, triathlon.urldict[year], triathlon.tableattributes, triathlon.colnamedict[year], triathlon.currpagecss)
         tempdf['Year'] = year
         if yearcount == 0:
             df = tempdf
@@ -121,34 +139,10 @@ def getresults_urllist(triname, urldict, coldict):
         yearcount += 1
         
    
-    return df
-    
-    
+    return df   
 
     
-chicagourl = { 2014: "http://results.active.com/events/transamerica-chicago-triathlon/international/expanded?",
-               2013: "http://results.active.com/events/life-time-chicago-triathlon-results--2/international/expanded?",
-               2012: "http://results.active.com/events/2012-chicago-triathlon-fleet-feet-super-sprint-and-chicago-kids-triathlon/international-individual/expanded?",
-               2011: "http://results.active.com/events/life-time-chicago-triathlon-results/international-individual/expanded?",
-               2010: "http://results.active.com/events/chicago-triathlon-results--2/international-individual/expanded?",
-               2009: "http://results.active.com/events/chicago-triathlon-results--3/international-individual/expanded?",
-               2008: "http://results.active.com/events/accenture-chicago-triathlon-mcdonald-s-kids-triathlon-and-fleet-feet-supersprint-triathlon/international-individual--3/expanded?",
-               2005: "http://results.active.com/events/chicago-triathlon-results/international-individual/expanded?",
-               2004: "http://results.active.com/events/chicago-triathlon-resuls/international-individual/expanded?"
-               }
-               
-chicagocolumns = { 2014 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'DIVISION', 'swim', 'bike', 'run', 'DIVplace', 'SEXplace', 'SWIMRANK', 'BIKERANK', 'MPH', 'RUNRANK', 'PENALTY', 'FinishTime', 'T1', 'T2'],
-                   2013 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'DIVISION', 'swim', 'bike', 'run', 'DIVplace', 'SEXplace', 'SWIMRANK', 'BIKERANK', 'MPH', 'RUNRANK', 'FinishTime', 'T1', 'T2'],
-                   2012 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'swim', 'bike', 'run', 'FinishTime'],
-                   2011 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'swim', 'bike', 'run', 'FinishTime'],
-                   2010 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'swim', 'bike', 'run', 'FinishTime'],
-                   2009 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'swim', 'bike', 'run', 'FinishTime'],
-                   2008 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'swim', 'bike', 'run', 'FinishTime'],
-                   2005 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'swim', 'bike', 'run', 'FinishTime'],
-                   2004 : ['Place', 'Bib', 'Name', 'City', 'State', 'Age', 'Gender', 'swim', 'bike', 'run', 'FinishTime'],                   
-                   }
-    
-chicacgodf = getresults_urllist('chicago',chicagourl, chicagocolumns)
+chicacgodf = getresults(md.CH)
 
-chicacgodf.to_csv(resultsdir + "chicacgo.csv")
+#chicacgodf.to_csv(resultsdir + "chicacgo.csv")
 
