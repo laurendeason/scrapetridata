@@ -5,7 +5,7 @@ Created on Tue Sep 22 14:32:41 2015
 @author: lauren
 """
 #metadata.py
-
+from selenium import webdriver
 import triclass as tri
 
 #future generalization - have dictionary defining unique code for each race, perhaps 2 digit alphanumeric, DC1, DC2, NY, CH, etc.  Eventually a df giving, for each race, set of divisions, race date, race lengths, etc.
@@ -70,13 +70,18 @@ CH = tri.Triathlon('CH', 'Chicago', 'IL', "Transamerica Chicago Triathlon",
                baseurl="http://www.chicagotriathlon.com/",
                tableattributes = {'class':'participant-list'},
                currpagecss = 'em.current' )
+               
+CH.addnextpglink('css','a.next_page')  
+CH.addnextpglink('class','next_page')  
+CH.addnextpglink('text','Next →')          
 
-
+#DC metadata
 DC = tri.Triathlon('DC', 'Washington', 'DC', "The Nation's Triathlon", 
                yearlist = [2012,2013,2014,2015],
-               colnamedict = {  2014 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
-                        2013 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
-                        2012 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],   
+               colnamedict = {  2015 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
+                                2014 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State',         'T1', 'bike', 'T2', 'run', 'FinishTime'],
+                                2013 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
+                                2012 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],   
                       },
                baseurl="http://nationstri.com/",
                tableattributes = {'class':'data'},
@@ -85,6 +90,30 @@ DC = tri.Triathlon('DC', 'Washington', 'DC', "The Nation's Triathlon",
 for year in DC.yearlist:               
     DC.addurl(year, "http://nationstri.com/results/" + str(year) + "-results/")
 
+DC.addnextpglink('text','>>')   
+
+#NY metadata
+NY = tri.Triathlon('NY', 'New York', 'NY', "New York City Triathlon", 
+               yearlist = [2012,2013,2014,2015],
+               colnamedict = {  2015 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
+                                2014 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
+                                2013 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
+                                2012 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],	
+                      },
+               baseurl="http://nyctri.com/",
+               resultsurl = 'http://www.nyctri.com/new-york/results/',
+               tableattributes = {'class':'data'},
+               currpagecss = 'p.rpp b')
+
+driver = webdriver.PhantomJS()
+driver.set_window_size(1120, 550)
+for year in NY.yearlist: 
+    driver.get(NY.resultsurl)
+    url = driver.find_element_by_link_text(str(year)+' Results').get_attribute('href')            
+    NY.addurl(year, url)
+driver.quit()
+
+NY.addnextpglink('text','>>')  
 
 
      
