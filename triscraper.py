@@ -181,7 +181,15 @@ def getresults(triathlon, savename):
         tempdf = getresultsfromurl(triathlon.racecode, year, triathlon.urldict[year], triathlon.tableattributes, triathlon.colnamedict[year], triathlon.currpagecss, triathlon.nextpglink)
         tempdf['Year'] = year
         tempdf['racecode'] = triathlon.racecode
-        tempdf['yearborn'] = tempdf['Year']-tempdf['Age']  #assume bday has happened already in current year; later can match on yearborn or yearborn+1
+        tempdf['yearborn'] = (tempdf['Year']-tempdf['Age']).fillna(0.0).astype(int)  #assume bday has happened already in current year; later can match on yearborn or yearborn+1
+        tempdf[tempdf['yearborn'] == tempdf['Year']]['yearborn'] = None
+        if triathlon.nameformat == "Firstname Lastname":
+            tempdf['firstname'] = tempdf['Name'].str.rsplit(' ',expand=True,n=1)[0].str.strip().str.upper()
+            tempdf['lastname'] = tempdf['Name'].str.rsplit(' ',expand=True,n=1)[1].str.strip().str.upper()
+        elif triathlon.nameformat == "Lastname, Firstname":
+            tempdf['firstname'] = tempdf['Name'].str.split(',',expand=True,n=1)[1].str.strip().str.upper()
+            tempdf['lastname'] = tempdf['Name'].str.split(',',expand=True,n=1)[0].str.strip().str.upper() 
+        
         if yearcount == 0:
             df = tempdf
         else:
@@ -200,4 +208,13 @@ allresults = pd.concat((allresults, getresults(md.NY, md.NY.racecode)), axis=0, 
 
 #chicacgodf.to_csv(resultsdir + "chicacgo.csv")
 
+subset = allresults[['firstname','lastname','yearborn','racecode','Year']] 
+time.sleep(5) #without this , if re-running and athlete column already exists, seems to cause SettingWithCopyWarning...dont really understand why
+subset['athlete'] = subset['firstname']+subset['lastname']+subset['yearborn'].astype(str)
+graphset = subset.merge(subset,how='inner',on=['racecode','Year']) 
 
+#create one column for person1, one for person2
+#graphset['person1'] = graphset[['firstname_x','lastname_x','yearborn_x']]
+
+#import networkx as nx
+#mg = nx.from_pandas_dataframe(graphset, person_x, person_y, edge_attr=['racecode','Year'], create_using=MultiGraph())

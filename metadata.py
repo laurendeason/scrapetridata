@@ -85,7 +85,8 @@ DC = tri.Triathlon('DC', 'Washington', 'DC', "The Nation's Triathlon",
                       },
                baseurl="http://nationstri.com/",
                tableattributes = {'class':'data'},
-               currpagecss = 'p.rpp b')
+               currpagecss = 'p.rpp b',
+               nameformat = "Lastname, Firstname")
 
 for year in DC.yearlist:               
     DC.addurl(year, "http://nationstri.com/results/" + str(year) + "-results/")
@@ -103,9 +104,10 @@ NY = tri.Triathlon('NY', 'New York', 'NY', "New York City Triathlon",
                baseurl="http://nyctri.com/",
                resultsurl = 'http://www.nyctri.com/new-york/results/',
                tableattributes = {'class':'data'},
-               currpagecss = 'p.rpp b')
+               currpagecss = 'p.rpp b',
+               nameformat = "Lastname, Firstname")
 
-driver = webdriver.PhantomJS()
+driver = webdriver.PhantomJS(port=65000)
 driver.set_window_size(1120, 550)
 for year in NY.yearlist: 
     driver.get(NY.resultsurl)
