@@ -1,5 +1,8 @@
-# -*- coding: utf-8 -*-
-#import urllib2
+
+# coding: utf-8
+
+# In[7]:
+
 from bs4 import BeautifulSoup
 import pandas as pd
 import datetime
@@ -13,6 +16,9 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException,
 import time
 
 resultsdir = "./results/"
+
+#define an output log file to store output from scraping
+logfile = open('./logs/triscraper.log', 'a')
 
 #need to add in condition based on lastpagescountdown plus alternative conditions indicating we are on last page of results for given race
 #condition to indicate we are on last page of results for given year-race
@@ -29,7 +35,7 @@ def df_unpickler(f):
 def findnextpage(driver, nextpglink):
     #this takes in given driver and a dictionary mapping type of element to the element value that identifies the link to the next page
     #can't use dictionary here instead of repeated if then else; tried already but it tries to find values in driver even when they aren't part of dictionary for given city
-    print("In findnextpage!!")                 
+    #print("In findnextpage!!")                 
     if nextpglink['css'] != 'missing':
         #print ("In if for css")
         return driver.find_element_by_css_selector(nextpglink['css'])
@@ -66,6 +72,7 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
         for page in range(1,maxpages):
             if startcountdown == 1:
                 lastpagescountdown -= 1
+            logfile.write(("Page is %d" % page))
             print("Page is %d" % page)
             if page == 1:
                 driver.get(url)
@@ -92,7 +99,7 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
             try:
                 wait.until(lambda driver: driver.find_element_by_css_selector(currpagecss).text == unicode(page))
             except TimeoutException:
-                print("WARNING: Current page, %r, doesn't match counted page, %r, allowing %r more pages to be read. " % (driver.find_element_by_css_selector(currpagecss).text,page, lastpagescountdown+1))
+                logfile.write("WARNING: Current page, %r, doesn't match counted page, %r, allowing %r more pages to be read. \n" % (driver.find_element_by_css_selector(currpagecss).text,page, lastpagescountdown+1))
                 startcountdown = 1
             
             soup = BeautifulSoup(driver.page_source, "lxml") #, "html5lib"
@@ -158,7 +165,7 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
             else:
                 df = pd.concat((df, tempdf), axis=0, ignore_index=True)
                 
-            print tempdf.head()
+            logfile.write(tempdf.head())
                 
             #condition to indicate we are on last page of results for given year-race -- currently this just adds together conditions from all 3 cities
             if len(driver.find_elements_by_css_selector('span.next_page.disabled')) > 0 or lastpagescountdown <= 0 or (tempdf['Place'][0] == 1 and page != 1):
@@ -177,6 +184,7 @@ def getresults(triathlon, savename):
     yearcount = 0
 
     for year in triathlon.yearlist:  # 2004, 2005, 2008, 2009, 2010, 2011, 2012, 2013, 2014 
+        logfile.write("CITY: %r ; YEAR: %d \n" % (triathlon.city, year) )
         print("CITY: %r ; YEAR: %d " % (triathlon.city, year) )
         tempdf = getresultsfromurl(triathlon.racecode, year, triathlon.urldict[year], triathlon.tableattributes, triathlon.colnamedict[year], triathlon.currpagecss, triathlon.nextpglink)
         tempdf['Year'] = year
@@ -197,24 +205,31 @@ def getresults(triathlon, savename):
             
         yearcount += 1
         
-   
+    #print('Returning df now')
     return df   
     
-  
+@checkpoint(key = string.Template('allresults.csv'), work_dir = resultsdir, pickler=df_pickler, unpickler=df_unpickler, refresh = True)
+def aggregateresults(trilist):  
+    for tri in trilist:
+        if tri == trilist[0]:
+            allresults = getresults(tri, tri.racecode)
+        else:
+            allresults = pd.concat((allresults, getresults(tri, tri.racecode)), axis=0, ignore_index=True)  
+    return allresults
     
-allresults = getresults(md.CH, md.CH.racecode)
-allresults = pd.concat((allresults, getresults(md.DC, md.DC.racecode)), axis=0, ignore_index=True)
-allresults = pd.concat((allresults, getresults(md.NY, md.NY.racecode)), axis=0, ignore_index=True)
+trilist = [md.CH,md.DC,md.NY]
+allresults = aggregateresults(trilist)
 
-#chicacgodf.to_csv(resultsdir + "chicacgo.csv")
+logfile.close()
+    
 
-subset = allresults[['firstname','lastname','yearborn','racecode','Year']] 
-time.sleep(5) #without this , if re-running and athlete column already exists, seems to cause SettingWithCopyWarning...dont really understand why
-subset['athlete'] = subset['firstname']+subset['lastname']+subset['yearborn'].astype(str)
-graphset = subset.merge(subset,how='inner',on=['racecode','Year']) 
 
-#create one column for person1, one for person2
-#graphset['person1'] = graphset[['firstname_x','lastname_x','yearborn_x']]
+# In[6]:
 
-#import networkx as nx
-#mg = nx.from_pandas_dataframe(graphset, person_x, person_y, edge_attr=['racecode','Year'], create_using=MultiGraph())
+
+
+
+# In[ ]:
+
+
+
