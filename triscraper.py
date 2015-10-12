@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[7]:
+# In[51]:
 
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -18,7 +18,7 @@ import time
 resultsdir = "./results/"
 
 #define an output log file to store output from scraping
-logfile = open('./logs/triscraper.log', 'a')
+logfile = open('./logs/triscraper.log', 'a')  #a appends here.  to overwrite previous log file, change to w
 
 #need to add in condition based on lastpagescountdown plus alternative conditions indicating we are on last page of results for given race
 #condition to indicate we are on last page of results for given year-race
@@ -50,8 +50,8 @@ def findnextpage(driver, nextpglink):
         return NoSuchElementException
     
 
-@checkpoint(key = string.Template('{0}_{1}.csv'), work_dir = resultsdir, pickler=df_pickler, unpickler=df_unpickler, refresh = False)
-def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagecss, nextpglink, maxpages = 100):
+@checkpoint(key = string.Template('{1}.csv'), work_dir = resultsdir, pickler=df_pickler, unpickler=df_unpickler, refresh = False)
+def getresults(triathlon, savename, maxpages = 100):
         #This function scrapes the results for the given year which are located at given url, returns as a dataframe
         #url = string containing url with results
         # columnlist = list of column headers in order that they appear on results page
@@ -75,11 +75,11 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
             logfile.write(("Page is %d" % page))
             print("Page is %d" % page)
             if page == 1:
-                driver.get(url)
+                driver.get(triathlon.resulturl)
             else:
                 try:
                     #wait.until(lambda driver: findnextpage(driver, nextpglink).click() not in [WebDriverException, StaleElementReferenceException])
-                    findnextpage(driver, nextpglink).click()
+                    findnextpage(driver, triathlon.nextpglink).click()
                     #this should be modified to go back and try other elements identifying nextpglink before resorting to exception below, maybe just an if statement in findnextpage above
                     #before first return , if nextpagmap[key].click() != NoSuchElementException
                 except NoSuchElementException:
@@ -97,15 +97,15 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
             #    time.sleep(5)
             #checks that new page has loaded by checking if highlighted page number is equal to page number in for loop
             try:
-                wait.until(lambda driver: driver.find_element_by_css_selector(currpagecss).text == unicode(page))
+                wait.until(lambda driver: driver.find_element_by_css_selector(triathlon.currpagecss).text == unicode(page))
             except TimeoutException:
-                logfile.write("WARNING: Current page, %r, doesn't match counted page, %r, allowing %r more pages to be read. \n" % (driver.find_element_by_css_selector(currpagecss).text,page, lastpagescountdown+1))
+                logfile.write("WARNING: Current page, %r, doesn't match counted page, %r, allowing %r more pages to be read. \n" % (driver.find_element_by_css_selector(triathlon.currpagecss).text,page, lastpagescountdown+1))
                 startcountdown = 1
             
             soup = BeautifulSoup(driver.page_source, "lxml") #, "html5lib"
             tridatalist = []
             i=0
-            rowgen = (row for row in soup('table', tableattributes)[0].tbody('tr') if len(row('td')) >  0)
+            rowgen = (row for row in soup('table', triathlon.tableattributes)[0].tbody('tr') if len(row('td')) >  0)
             for row in rowgen:
                 tridatalist.append([])
                 tds = row('td')
@@ -114,19 +114,19 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
                         tridatalist[i].append(None)
                     elif "".join(tds[j].stripped_strings) == '':
                         tridatalist[i].append(None)
-                    elif columnlist[j] in ['Place', 'Bib','Age','DIVplace', 'SEXplace', 'SWIMRANK', 'BIKERANK', 'RUNRANK', 'PENALTY']:
+                    elif triathlon.columns[j] in ['Place', 'Bib','Age','DIVplace', 'SEXplace', 'SWIMRANK', 'BIKERANK', 'RUNRANK', 'PENALTY']:
                         tridatalist[i].append(int("".join(tds[j].stripped_strings)))
-                    elif columnlist[j] == 'MPH':
+                    elif triathlon.columns[j] == 'MPH':
                         tridatalist[i].append(float("".join(tds[j].stripped_strings))) 
-                    elif columnlist[j] in ['swim', 'bike', 'run','FinishTime', 'T1', 'T2']:
+                    elif triathlon.columns[j] in ['swim', 'bike', 'run','FinishTime', 'T1', 'T2']:
                         #for now just use explicit if statement for which city--should be able to merge conditions into one set of more universal
-                        if triname == 'CH':
+                        if triathlon.racecode.split('_')[0] == 'CH':
                             if "".join(tds[j].stripped_strings) == '0' or "".join(tds[j].stripped_strings)[2] != ":" or "".join(tds[j].stripped_strings)[5] != ":":
                                 tridatalist[i].append(None)
                             else:
                                 t = datetime.datetime.strptime("".join(tds[j].stripped_strings), "%H:%M:%S")
                                 tridatalist[i].append(datetime.timedelta(hours=t.hour, minutes=t.minute, seconds=t.second))
-                        elif triname == 'DC' or triname == 'NY':
+                        elif triathlon.racecode.split('_')[0] == 'DC' or triname == 'NY':
                             if "".join(tds[j].stripped_strings).count(':') == 0:
                                 tridatalist[i].append(None)
                             elif "".join(tds[j].stripped_strings).count(':') == 1:    
@@ -142,19 +142,19 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
                 i += 1
     			
     	
-            tempdf = pd.DataFrame(tridatalist, columns = columnlist)
+            tempdf = pd.DataFrame(tridatalist, columns = triathlon.columns)
             tempdf['FinishTimeinHours'] = pd.TimedeltaIndex(tempdf['FinishTime']).days*24 + pd.TimedeltaIndex(tempdf['FinishTime']).seconds.astype(float)/3600 + pd.TimedeltaIndex(tempdf['FinishTime']).microseconds.astype(float)/3600000000
             tempdf['bikeinHours'] = pd.TimedeltaIndex(tempdf['bike']).days*24 + pd.TimedeltaIndex(tempdf['bike']).seconds.astype(float)/3600 + pd.TimedeltaIndex(tempdf['bike']).microseconds.astype(float)/3600000000
             tempdf['runinHours'] = pd.TimedeltaIndex(tempdf['run']).days*24 + pd.TimedeltaIndex(tempdf['run']).seconds.astype(float)/3600 + pd.TimedeltaIndex(tempdf['run']).microseconds.astype(float)/3600000000
             
-            if 'T1' in columnlist:
+            if 'T1' in triathlon.columns:
                 tempdf['T1inHours'] = pd.TimedeltaIndex(tempdf['T1']).days*24 + pd.TimedeltaIndex(tempdf['T1']).seconds.astype(float)/3600 + pd.TimedeltaIndex(tempdf['T1']).microseconds.astype(float)/3600000000
-            if 'T2' in columnlist:            
+            if 'T2' in triathlon.columns:            
                 tempdf['T2inHours'] = pd.TimedeltaIndex(tempdf['T2']).days*24 + pd.TimedeltaIndex(tempdf['T2']).seconds.astype(float)/3600 + pd.TimedeltaIndex(tempdf['T2']).microseconds.astype(float)/3600000000	
 
             
             #assume that if swim is misisng, it was cancelled (such as DC 2014)
-            if 'swim' in columnlist:
+            if 'swim' in triathlon.columns:
                 tempdf['swiminHours'] = pd.TimedeltaIndex(tempdf['swim']).days*24 + pd.TimedeltaIndex(tempdf['swim']).seconds.astype(float)/3600 + pd.TimedeltaIndex(tempdf['swim']).microseconds.astype(float)/3600000000
             #else: 
             #    tempdf['swiminHours'] = tempdf['FinishTimeinHours']-tempdf['T1inHours']-tempdf['bikeinHours']-tempdf['T2inHours']-tempdf['runinHours']
@@ -164,8 +164,8 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
                 df = tempdf
             else:
                 df = pd.concat((df, tempdf), axis=0, ignore_index=True)
-                
-            logfile.write(tempdf.head())
+            
+            logfile.write(tempdf.head().to_string())
                 
             #condition to indicate we are on last page of results for given year-race -- currently this just adds together conditions from all 3 cities
             if len(driver.find_elements_by_css_selector('span.next_page.disabled')) > 0 or lastpagescountdown <= 0 or (tempdf['Place'][0] == 1 and page != 1):
@@ -177,24 +177,24 @@ def getresultsfromurl(triname, year, url, tableattributes, columnlist, currpagec
         return df
                   
 @checkpoint(key = string.Template('{1}_allyears.csv'), work_dir = resultsdir, pickler=df_pickler, unpickler=df_unpickler, refresh = True)
-def getresults(triathlon, savename):
+def getresultsallyears(trilist, savename):
     #this accepts a triathlon object,2nd argument is simply the string under which you would like the results saved
     #returns a dataframe storing the results data.
 
     yearcount = 0
 
-    for year in triathlon.yearlist:  # 2004, 2005, 2008, 2009, 2010, 2011, 2012, 2013, 2014 
-        logfile.write("CITY: %r ; YEAR: %d \n" % (triathlon.city, year) )
-        print("CITY: %r ; YEAR: %d " % (triathlon.city, year) )
-        tempdf = getresultsfromurl(triathlon.racecode, year, triathlon.urldict[year], triathlon.tableattributes, triathlon.colnamedict[year], triathlon.currpagecss, triathlon.nextpglink)
-        tempdf['Year'] = year
-        tempdf['racecode'] = triathlon.racecode
+    for tri in trilist:  
+        logfile.write("CITY: %r ; YEAR: %d \n" % (tri.city, tri.year) )
+        print("CITY: %r ; YEAR: %d " % (tri.city, tri.year) )
+        tempdf = getresults(tri.year, tri.racecode) #second argument sent separately so that it can be used in naming csv file produced by ediblepickle
+        tempdf['Year'] = tri.year
+        tempdf['racecode'] = tri.racecode
         tempdf['yearborn'] = (tempdf['Year']-tempdf['Age']).fillna(0.0).astype(int)  #assume bday has happened already in current year; later can match on yearborn or yearborn+1
         tempdf[tempdf['yearborn'] == tempdf['Year']]['yearborn'] = None
-        if triathlon.nameformat == "Firstname Lastname":
+        if tri.nameformat == "Firstname Lastname":
             tempdf['firstname'] = tempdf['Name'].str.rsplit(' ',expand=True,n=1)[0].str.strip().str.upper()
             tempdf['lastname'] = tempdf['Name'].str.rsplit(' ',expand=True,n=1)[1].str.strip().str.upper()
-        elif triathlon.nameformat == "Lastname, Firstname":
+        elif tri.nameformat == "Lastname, Firstname":
             tempdf['firstname'] = tempdf['Name'].str.split(',',expand=True,n=1)[1].str.strip().str.upper()
             tempdf['lastname'] = tempdf['Name'].str.split(',',expand=True,n=1)[0].str.strip().str.upper() 
         
@@ -209,27 +209,19 @@ def getresults(triathlon, savename):
     return df   
     
 @checkpoint(key = string.Template('allresults.csv'), work_dir = resultsdir, pickler=df_pickler, unpickler=df_unpickler, refresh = True)
-def aggregateresults(trilist):  
-    for tri in trilist:
-        if tri == trilist[0]:
-            allresults = getresults(tri, tri.racecode)
+def aggregateresults(trilistdict):  
+    i = 0
+    for tri in trilistdict.keys():  #.keys() here isnt needed
+        if i == 0:
+            allresults = getresultsallyears(trilistdict[tri], tri)
         else:
-            allresults = pd.concat((allresults, getresults(tri, tri.racecode)), axis=0, ignore_index=True)  
+            allresults = pd.concat((allresults, getresultsallyears(trilistdict[tri], tri)), axis=0, ignore_index=True)  
+        i+=1
     return allresults
-    
-trilist = [md.CH,md.DC,md.NY]
-allresults = aggregateresults(trilist)
+   
+#trilistdict is now a dictionary of lists (of races)  
+allresults = aggregateresults(md.trilistdict)
 
 logfile.close()
     
-
-
-# In[6]:
-
-
-
-
-# In[ ]:
-
-
 
