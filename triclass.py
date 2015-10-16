@@ -28,7 +28,7 @@ class Race():
     #baseurl (optional) gives the main website of the race (independent of year)
     #baseresulturl (optional) gives the main results website for the race (independent of year)
     def __init__(self, racecode, city, state, fullname, year, resulturl=None, columns=None, tableattributes=None, currpagecss=None, nextpglink=None, nameformat=None,
-        baseurl=None, baseresulturl=None ):
+        baseurl=None, baseresulturl=None, resultformat=None ):
         #is it better to define url and colnames lists as dictionaries, or just lists that line up based on year? or maybe a full on dataframe? as of
         #10/9, changing format so that each instance is one city-race rather than the full set of races, so any lists or dictionaries will be defined at higher level
         # to have default values that are mutable objects, must be done as below.  might want to leave some defaults as None rather than putting in these misisng default values though
@@ -52,6 +52,7 @@ class Race():
         self.nameformat = nameformat
         self.baseurl = baseurl
         self.baseresulturl = baseresulturl
+        self.resultformat = resultformat
         
     def addnextpglink(self,key,val):
         self.nextpglink[key]=val
