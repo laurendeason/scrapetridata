@@ -50,7 +50,7 @@ for race in CH:
           
 
 #DC metadata
-DCyearlist = [2012,2013,2014,2015]
+DCyearlist = [2012,2013,2014,2015] #Raceresults360
 DCcolnamedict = {  2015 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
                    2014 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State',         'T1', 'bike', 'T2', 'run', 'FinishTime'],
                    2013 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
@@ -65,12 +65,13 @@ for year in DCyearlist:
          currpagecss = 'p.rpp b',
          nameformat = "Lastname, Firstname",
          baseurl="http://nationstri.com/",
-         baseresulturl = "http://nationstri.com/results/"))
+         baseresulturl = "http://nationstri.com/results/",
+         resultformat = "raceresults360"))
 for race in DC:
   race.addnextpglink('text','>>')   
 
 #NY metadata
-NYyearlist = [2012,2013,2014,2015]
+NYyearlist = [2012,2013,2014,2015] #Raceresults360
 NYcolnamedict = {  2015 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
                    2014 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
                    2013 : ['Place', 'DIVISION', 'DIVplace', 'Name', 'Age', 'City', 'State', 'swim', 'T1', 'bike', 'T2', 'run', 'FinishTime'],
@@ -86,7 +87,8 @@ for year in NYyearlist:
          baseresulturl = 'http://www.nyctri.com/new-york/results/',
          tableattributes = {'class':'data'},
          currpagecss = 'p.rpp b',
-         nameformat = "Lastname, Firstname"))
+         nameformat = "Lastname, Firstname",
+         resultformat = "raceresults360"))
 
 
 driver = webdriver.PhantomJS(port=65000)
